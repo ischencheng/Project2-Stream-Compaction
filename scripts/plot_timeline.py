@@ -64,7 +64,7 @@ for row in rows:
     ax.broken_barh([(start, duration)], (lane - 0.2, 0.4), facecolors=color(row["name"]))
 
 annotations = {"static_kernel": "Vector initialization (2 kernels)",
-               "DeviceScanKernel": "CUB scan: 75.1 us",
+               "DeviceScanKernel": "CUB scan",
                "Host-to-Device": "H2D: 4 MiB", "Device-to-Host": "D2H: 4 MiB"}
 seen = set()
 for row in rows:
@@ -72,7 +72,8 @@ for row in rows:
     if name in annotations and name not in seen:
         start, duration = float(row["start_ms"]), float(row["duration_ms"])
         y = lanes[row["lane"]]
-        ax.annotate(annotations[name], (start + duration / 2, y + 0.22),
+        label = f"CUB scan: {duration * 1000:.1f} us" if name == "DeviceScanKernel" else annotations[name]
+        ax.annotate(label, (start + duration / 2, y + 0.22),
                     xytext=(start + duration / 2, y + 0.48), ha="center", fontsize=9,
                     arrowprops={"arrowstyle": "-", "color": "#555555"})
         seen.add(name)
