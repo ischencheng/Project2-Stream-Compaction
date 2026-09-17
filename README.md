@@ -2,20 +2,15 @@
 
 University of Pennsylvania, CIS 5650: GPU Programming and Architecture, Project 2
 
-<!-- (TODO) YOUR NAME HERE -->
 - Chen Cheng
-  <!-- (TODO) [LinkedIn](), [personal website](), [twitter](), etc. -->
   - [LinkedIn](https://www.linkedin.com/in/chen-andrew-cheng-34a133229/), [GitHub](https://github.com/ischencheng)
-<!-- Tested on: (TODO) Windows 22, i7-2222 @ 2.22GHz 22GB, GTX 222 222MB (Moore 2222 Lab) -->
 - Tested on: Windows 11 Home (10.0.26200), Intel Core i5-12500H (2.50 GHz base), 16 GB RAM,
   NVIDIA GeForce RTX 2050 Laptop GPU, 4096 MB, personal HONOR GLO-FX6P laptop.
-
-<!-- (TODO: Your README) -->
 
 This project implements exclusive prefix sums and stable removal of zero-valued
 integers. It compares CPU scan, naive global-memory scan, Blelloch scan and Thrust.
 Extra-credit implementations explore active-thread indexing, hierarchical shared
-memory, and scan-based radix sort. Original TODO comments remain beside completed code.
+memory, and scan-based radix sort.
 
 ![Required scan comparison](img/scan-performance.png)
 

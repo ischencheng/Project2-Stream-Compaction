@@ -56,7 +56,7 @@ def color(name):
         return "#CC79A7"
     return "#0072B2"
 
-fig, ax = plt.subplots(figsize=(12, 4.6), layout="constrained")
+fig, ax = plt.subplots(figsize=(12, 5.2), layout="constrained")
 lanes = {"CUDA API": 2, "GPU kernels": 1, "GPU copies": 0}
 for row in rows:
     start, duration = float(row["start_ms"]), float(row["duration_ms"])
@@ -77,7 +77,12 @@ for row in rows:
                     xytext=(start + duration / 2, y + 0.48), ha="center", fontsize=9,
                     arrowprops={"arrowstyle": "-", "color": "#555555"})
         seen.add(name)
-ax.set(yticks=list(lanes.values()), yticklabels=list(lanes), ylim=(-0.4, 2.5),
+allocations = [row for row in rows if row["name"] == "cudaMalloc"]
+for row, label in zip(allocations, ["Input vector", "Output vector", "Temporary allocation\ninside exclusive_scan"]):
+    x = float(row["start_ms"]) + float(row["duration_ms"]) / 2
+    ax.annotate(label, (x, 2.22), xytext=(x, 2.53), ha="center", fontsize=9,
+                arrowprops={"arrowstyle": "->", "color": "#555555"})
+ax.set(yticks=list(lanes.values()), yticklabels=list(lanes), ylim=(-0.4, 2.9),
        xlabel="Milliseconds since first allocation after capture start",
        title="Nsight Systems: one warmed Thrust host call, 1,048,576 integers")
 ax.grid(axis="x", alpha=0.2)

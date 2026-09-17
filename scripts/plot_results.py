@@ -31,7 +31,21 @@ def series(groups, algorithm, column=0):
     return x, med, lo, hi
 
 
-def curve(name, title, algorithms, column=0):
+def median(algorithm, n, column=0):
+    values = next(values for (a, size, _), values in samples.items()
+                  if a == algorithm and size == n)
+    return statistics.median(value[column] for value in values)
+
+
+def annotate(ax, point, label, position):
+    ax.annotate(label, xy=point, xytext=position, textcoords="axes fraction",
+                fontsize=9, ha="center", va="center",
+                bbox={"boxstyle": "round,pad=0.5", "fc": "white", "ec": "#777777", "alpha": 0.96},
+                arrowprops={"arrowstyle": "->", "color": "#444444", "lw": 1.1},
+                zorder=5)
+
+
+def curve(name, title, algorithms, column=0, notes=()):
     fig, ax = plt.subplots(figsize=(10, 5.6), layout="constrained")
     for algorithm in algorithms:
         x, med, lo, hi = series(samples, algorithm, column)
@@ -40,6 +54,8 @@ def curve(name, title, algorithms, column=0):
     ax.set(xscale="log", yscale="log", xlabel="Array size (integers)", ylabel="Median time (ms)", title=title)
     ax.grid(True, which="major", alpha=0.23)
     ax.legend(fontsize=10)
+    for algorithm, n, label, position in notes:
+        annotate(ax, (n, median(algorithm, n, column)), label, position)
     fig.text(0.5, -0.02, "RTX 2050 | Release | 3 warmups + 15 samples | Shading: interquartile range",
              ha="center", fontsize=9, color="#555555")
     fig.savefig(OUT / name, dpi=180, bbox_inches="tight")
@@ -48,13 +64,33 @@ def curve(name, title, algorithms, column=0):
 
 samples = read_samples("benchmark.csv")
 tuning = read_samples("tuning.csv")
-curve("scan-performance.png", "Exclusive scan: required implementations", ["CPU", "Naive", "Efficient", "Thrust"])
+large = 1048576
+largest = max(n for _, n, _ in samples)
+curve("scan-performance.png", "Exclusive scan: required implementations", ["CPU", "Naive", "Efficient", "Thrust"],
+      notes=[("Efficient", large,
+              f"At n = {large:,}\nGlobal tree: {median('Efficient', large) / median('CPU', large):.2f}x CPU time",
+              (0.49, 0.86)),
+             ("Thrust", largest,
+              f"At n = {largest:,}\nThrust: {median('CPU', largest) / median('Thrust', largest):.2f}x CPU speedup\n(algorithm interval)",
+              (0.80, 0.24))])
 curve("scan-optimizations.png", "Scan optimizations: measured algorithm time",
-      ["CPU", "Efficient unoptimized", "Efficient", "Shared naive", "Shared Blelloch", "Thrust"])
+      ["CPU", "Efficient unoptimized", "Efficient", "Shared naive", "Shared Blelloch", "Thrust"],
+      notes=[("Efficient", large,
+              f"Active-thread indexing: {median('Efficient unoptimized', large) / median('Efficient', large):.2f}x faster\nthan full-grid baseline at n = {large:,}",
+              (0.50, 0.87)),
+             ("Shared Blelloch", large,
+              f"Shared Blelloch: {median('Efficient', large) / median('Shared Blelloch', large):.2f}x faster\nthan global tree at n = {large:,}",
+              (0.78, 0.22))])
 curve("compaction-performance.png", "Stable compaction: approximately 75% retained",
-      ["CPU direct", "CPU scan", "Efficient compact", "Shared compact"])
+      ["CPU direct", "CPU scan", "Efficient compact", "Shared compact"],
+      notes=[("Shared compact", large,
+              f"At n = {large:,}\nShared compaction: {median('CPU direct', large) / median('Shared compact', large):.2f}x CPU direct speedup\n(algorithm interval; excludes transfers)",
+              (0.73, 0.21))])
 curve("scan-wall-time.png", "Scan: complete host API call including allocation and transfers",
-      ["CPU", "Naive", "Efficient", "Shared naive", "Shared Blelloch", "Thrust"], column=1)
+      ["CPU", "Naive", "Efficient", "Shared naive", "Shared Blelloch", "Thrust"], column=1,
+      notes=[("Thrust", largest,
+              f"At n = {largest:,}\nThrust: {median('Thrust', largest, 1):.2f} ms; CPU: {median('CPU', largest, 1):.2f} ms\nTransfers and allocation change the ranking",
+              (0.76, 0.24))])
 
 fig, axes = plt.subplots(1, 2, figsize=(12, 4.8), layout="constrained")
 for ax, n in zip(axes, [10000, 1048576]):
@@ -64,7 +100,12 @@ for ax, n in zip(axes, [10000, 1048576]):
     ax.set(xscale="log", yscale="log", xlabel="Threads per block", ylabel="Median algorithm time (ms)", title=f"n = {n:,}")
     ax.set_xticks([32, 64, 128, 256, 512, 1024], [32, 64, 128, 256, 512, 1024])
     ax.grid(True, alpha=0.2)
-axes[1].legend(fontsize=9)
+for algorithm, position in [("Shared naive", (0.29, 0.48)), ("Shared Blelloch", (0.70, 0.34))]:
+    rows = [(b, statistics.median(t[0] for t in values))
+            for (a, n, b), values in tuning.items() if a == algorithm and n == large]
+    block, time = min(rows, key=lambda row: row[1])
+    annotate(axes[1], (block, time), f"{algorithm}: best at {block} threads\n{time:.4f} ms", position)
+fig.legend(*axes[1].get_legend_handles_labels(), loc="outside lower center", ncol=3, fontsize=9)
 fig.suptitle("Block-size sweep on RTX 2050 (3 warmups + 15 samples)")
 fig.savefig(OUT / "block-size-tuning.png", dpi=180)
 plt.close(fig)
