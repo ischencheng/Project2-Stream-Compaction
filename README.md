@@ -14,6 +14,12 @@ memory, and scan-based radix sort.
 
 ![Required scan comparison](img/scan-performance.png)
 
+**Figure 1. Required exclusive-scan implementations.** Median algorithm time versus
+input length on the RTX 2050 in Release mode; both axes are logarithmic. Each point
+uses 15 samples after three warmups, and shading shows the interquartile range.
+GPU timing excludes initial/final allocation and transfers. CPU leads at small
+sizes; Thrust is fastest among the required GPU versions at the largest size.
+
 ## Features
 
 | Implementation | Design | Work and auxiliary storage |
@@ -91,6 +97,12 @@ synchronization and cleanup. Laptop clock speeds and WDDM scheduling affect resu
 
 ![Block size sweep](img/block-size-tuning.png)
 
+**Figure 2. Block-size tuning.** Median algorithm time versus threads per block for
+10,000 integers (left) and 1,048,576 integers (right), using 15 samples per setting.
+At the larger size, shared naive and padded shared Blelloch each have their lowest
+measured median at 128 threads. The table below lists the selected setting for
+every custom scan; small differences between neighboring settings may reflect noise.
+
 The sweep tests 32, 64, 128, 256, 512 and 1024 threads at n = 10,000 and 1,048,576.
 These settings minimize the median at the larger tuning size:
 
@@ -139,6 +151,12 @@ not measured bandwidth, bank-conflict counters or achieved occupancy.
 
 ![Optimization comparison](img/scan-optimizations.png)
 
+**Figure 3. Effect of scan optimizations.** Median algorithm time versus input
+length, with logarithmic axes and interquartile bands; timing boundaries match
+Figure 1. At 1,048,576 integers, active-thread indexing gives a 1.31x speedup over
+the separately tuned full-grid baseline, and shared Blelloch gives a 3.85x speedup
+over the optimized global tree. These ratios describe the algorithm interval.
+
 **Active threads (Part 5).** Launch only `padded/stride` threads and map t to
 `(t+1)*stride-1`. `Efficient::scanUnoptimized` launches one thread per padded
 element with a modulus test. Separately tuned versions improve from 1.2867 to
@@ -176,6 +194,13 @@ occupancy at small sizes or upper recursion levels.
 
 ![Compaction comparison](img/compaction-performance.png)
 
+**Figure 4. Stable stream-compaction performance.** Median algorithm time versus
+input length, with logarithmic axes and interquartile bands. Inputs contain about
+75% nonzero values. GPU intervals include mapping, scan preparation, scanning and
+scattering, but exclude initial/final allocation, transfers and count readback.
+At 1,048,576 integers, shared compaction takes 0.4810 ms, a 4.08x speedup over CPU
+direct compaction within these timing boundaries.
+
 At 1,048,576, CPU direct compaction takes 1.9603 ms, CPU map/scan/scatter 2.7674 ms,
 global GPU compaction 1.3060 ms and shared GPU compaction 0.4810 ms. Scan-based
 compaction adds passes and temporary arrays. Direct CPU compaction uses fewer
@@ -183,6 +208,12 @@ passes but data-dependent branches. GPU scatter addresses are unique; no atomics
 are needed, and order is preserved.
 
 ![Complete host call time](img/scan-wall-time.png)
+
+**Figure 5. Complete scan-call cost.** Median host wall time versus input length,
+with logarithmic axes and interquartile bands. Unlike Figures 1 and 3, these times
+include allocation, transfers, synchronization and cleanup. At 16,777,216 integers,
+Thrust takes 31.71 ms versus CPU's 8.12 ms: its faster algorithm interval does not
+translate into a faster complete call through this host-pointer interface.
 
 Shared scan's 0.2551 ms region becomes 2.4766 ms for the complete call at 1,048,576,
 versus CPU 0.2980 ms. At 16,777,216, Thrust's 1.9865 ms region becomes 31.7072 ms
@@ -228,6 +259,13 @@ Run benchmarks separately from profilers and sanitizers.
 ## Nsight Systems: inside the Thrust call
 
 ![Thrust timeline exported from Nsight Systems](img/thrust-timeline.png)
+
+**Figure 6. Operations inside one warmed Thrust host call.** An Nsight Systems
+trace for 1,048,576 integers, reconstructed from exported timestamps. The three
+lanes share a millisecond axis and show host CUDA API calls, GPU kernels and GPU
+copies. An additional allocation occurs inside `exclusive_scan`; the main CUB scan
+kernel takes 75.1 microseconds. These profiled kernel durations are distinct from
+the unprofiled benchmark intervals.
 
 Nsight Systems 2025.5.1 captured one warmed call on 1,048,576 integers after three
 warmups. The figure is drawn from actual exported CUDA API/kernel/copy timestamps;
