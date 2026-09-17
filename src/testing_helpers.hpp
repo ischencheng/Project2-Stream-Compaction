@@ -6,6 +6,8 @@
 #include <string>
 #include <ctime>
 
+inline int testFailures = 0;
+
 template<typename T>
 int cmpArrays(int n, T *a, T *b) {
     for (int i = 0; i < n; i++) {
@@ -23,8 +25,10 @@ void printDesc(const char *desc) {
 
 template<typename T>
 void printCmpResult(int n, T *a, T *b) {
+    const bool failed = cmpArrays(n, a, b) != 0;
+    testFailures += failed;
     printf("    %s \n",
-            cmpArrays(n, a, b) ? "FAIL VALUE" : "passed");
+            failed ? "FAIL VALUE" : "passed");
 }
 
 template<typename T>
@@ -32,9 +36,10 @@ void printCmpLenResult(int n, int expN, T *a, T *b) {
     if (n != expN) {
         printf("    expected %d elements, got %d\n", expN, n);
     }
-    printf("    %s \n",
-            (n == -1 || n != expN) ? "FAIL COUNT" :
-            cmpArrays(n, a, b) ? "FAIL VALUE" : "passed");
+    const bool badCount = n < 0 || n != expN;
+    const bool badValue = !badCount && cmpArrays(n, a, b);
+    testFailures += badCount || badValue;
+    printf("    %s \n", badCount ? "FAIL COUNT" : badValue ? "FAIL VALUE" : "passed");
 }
 
 void zeroArray(int n, int *a) {
@@ -50,7 +55,9 @@ void onesArray(int n, int *a) {
 }
 
 void genArray(int n, int *a, int maxval) {
-    srand(time(nullptr));
+    // Deterministic sequence, seeded once, for reproducible starter output.
+    static const bool seeded = [] { srand(5650); return true; }();
+    (void)seeded;
 
     for (int i = 0; i < n; i++) {
         a[i] = rand() % maxval;

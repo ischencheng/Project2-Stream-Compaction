@@ -1,0 +1,8 @@
+GPU: NVIDIA GeForce RTX 2050; SM 8.6; 16 SMs; 102400 bytes shared/SM; 1536 threads/SM
+block,shared_bytes,active_blocks_per_sm,theoretical_occupancy
+32,264,16,0.333
+64,528,16,0.667
+128,1056,12,1.000
+256,2112,6,1.000
+512,4228,3,1.000
+1024,8456,1,0.667

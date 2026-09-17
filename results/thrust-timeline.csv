@@ -1,0 +1,25 @@
+lane,start_ms,duration_ms,name,bytes
+CUDA API,0.0,0.186449,cudaMalloc,0
+CUDA API,0.195408,0.061286,cudaLaunchKernel,0
+CUDA API,0.260291,0.481841,cudaStreamSynchronize,0
+GPU kernels,0.697076,0.036129,static_kernel,0
+CUDA API,0.742799,0.058954,cudaMalloc,0
+CUDA API,0.803941,0.038954,cudaLaunchKernel,0
+CUDA API,0.843924,0.369695,cudaStreamSynchronize,0
+GPU kernels,1.167713,0.037026,static_kernel,0
+CUDA API,1.214852,0.64354,cudaMemcpy,0
+GPU copies,1.417577,0.693332,Host-to-Device,4194304
+CUDA API,1.859764,0.009002,cudaEventRecord,0
+CUDA API,1.872266,0.070927,cudaMalloc,0
+CUDA API,1.946876,0.020545,cudaLaunchKernel,0
+CUDA API,1.976112,0.008363,cudaLaunchKernel,0
+CUDA API,1.985811,0.386982,cudaStreamSynchronize,0
+GPU kernels,2.287394,0.00192,DeviceScanInitKernel,0
+GPU kernels,2.29149,0.075139,DeviceScanKernel,0
+CUDA API,2.373763,0.202097,cudaFree,0
+CUDA API,2.577758,0.020999,cudaEventRecord,0
+CUDA API,2.599123,0.003501,cudaEventSynchronize,0
+CUDA API,2.606654,0.812133,cudaMemcpy,0
+GPU copies,2.647949,0.649779,Device-to-Host,4194304
+CUDA API,3.420394,0.203496,cudaFree,0
+CUDA API,3.625802,0.181131,cudaFree,0

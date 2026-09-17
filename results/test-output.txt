@@ -1,0 +1,59 @@
+
+****************
+** SCAN TESTS **
+****************
+    [  39  11  17  27  46  35  15   4  39   9   1  20  34 ...  47   0 ]
+==== cpu scan, power-of-two ====
+   elapsed time: 0.0003ms    (std::chrono Measured)
+    [   0  39  50  67  94 140 175 190 194 233 242 243 263 ... 6506 6553 ]
+==== cpu scan, non-power-of-two ====
+   elapsed time: 0.0001ms    (std::chrono Measured)
+    [   0  39  50  67  94 140 175 190 194 233 242 243 263 ... 6404 6419 ]
+    passed
+==== naive scan, power-of-two ====
+   elapsed time: 0.124928ms    (CUDA Measured)
+    passed
+==== naive scan, non-power-of-two ====
+   elapsed time: 0.070656ms    (CUDA Measured)
+    passed
+==== work-efficient scan, power-of-two ====
+   elapsed time: 0.24064ms    (CUDA Measured)
+    passed
+==== work-efficient scan, non-power-of-two ====
+   elapsed time: 0.089824ms    (CUDA Measured)
+    passed
+==== thrust scan, power-of-two ====
+   elapsed time: 0.183296ms    (CUDA Measured)
+    passed
+==== thrust scan, non-power-of-two ====
+   elapsed time: 0.028416ms    (CUDA Measured)
+    passed
+
+*****************************
+** STREAM COMPACTION TESTS **
+*****************************
+    [   2   1   3   2   1   2   3   3   0   0   2   1   0 ...   1   0 ]
+==== cpu compact without scan, power-of-two ====
+   elapsed time: 0.0006ms    (std::chrono Measured)
+    [   2   1   3   2   1   2   3   3   2   1   3   1   1 ...   2   1 ]
+    passed
+==== cpu compact without scan, non-power-of-two ====
+   elapsed time: 0.0003ms    (std::chrono Measured)
+    [   2   1   3   2   1   2   3   3   2   1   3   1   1 ...   2   1 ]
+    passed
+==== cpu compact with scan ====
+   elapsed time: 0.0009ms    (std::chrono Measured)
+    [   2   1   3   2   1   2   3   3   2   1   3   1   1 ...   2   1 ]
+    passed
+==== work-efficient compact, power-of-two ====
+   elapsed time: 0.224256ms    (CUDA Measured)
+    passed
+==== work-efficient compact, non-power-of-two ====
+   elapsed time: 0.185568ms    (CUDA Measured)
+    passed
+PASS: radix signed extremes and random full-range keys; block sizes 32 through 1024.
+PASS: 175 input cases; independent std::exclusive_scan and std::copy_if references.
+PASS: empty/singleton, zero/one/signed/random/tail-only data, block boundaries, non-power-of-two sizes.
+PASS: output guards and input preservation (CPU and GPU).
+Radix input: 4 -7 2 6 3 -5 1 0
+Radix output: -7 -5 0 1 2 3 4 6

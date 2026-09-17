@@ -1,6 +1,11 @@
 cmake_minimum_required(VERSION 3.18)
 project(cis5650_stream_compaction_test LANGUAGES CUDA CXX)
 
+# Match NVCC's static host runtime on Windows to avoid mixed CRT libraries.
+if(MSVC)
+    set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+endif()
+
 set_property(GLOBAL PROPERTY USE_FOLDERS ON)
 
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
@@ -33,6 +38,8 @@ set(headers
 
 set(sources
     "src/main.cpp"
+    "src/validation.cpp"
+    "src/benchmark.cpp"
     )
 
 list(SORT headers)
@@ -44,3 +51,7 @@ source_group(Sources FILES ${sources})
 add_executable(${CMAKE_PROJECT_NAME} ${sources} ${headers})
 target_link_libraries(${CMAKE_PROJECT_NAME} stream_compaction)
 set_property(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} PROPERTY VS_STARTUP_PROJECT ${CMAKE_PROJECT_NAME})
+
+enable_testing()
+add_test(NAME starter COMMAND ${CMAKE_PROJECT_NAME})
+add_test(NAME correctness COMMAND ${CMAKE_PROJECT_NAME} --test)

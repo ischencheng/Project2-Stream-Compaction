@@ -12,14 +12,39 @@
 #include <stream_compaction/efficient.h>
 #include <stream_compaction/thrust.h>
 #include "testing_helpers.hpp"
+#include "validation.h"
+#include "benchmark.h"
+#include <stream_compaction/shared.h>
 
 const int SIZE = 1 << 8; // feel free to change the size of array
 const int NPOT = SIZE - 3; // Non-Power-Of-Two
-int *a = new int[SIZE];
-int *b = new int[SIZE];
-int *c = new int[SIZE];
 
 int main(int argc, char* argv[]) {
+    if (argc > 1) {
+        try {
+            const std::string mode = argv[1];
+            if (mode == "--cpu-test") return runValidation(true, false);
+            if (mode == "--test") return runValidation(false, false);
+            if (mode == "--quick-test") return runValidation(false, true);
+            if (mode == "--radix-example") return runRadixExample();
+            if (mode == "--profile-thrust") return runThrustProfile();
+            if (mode == "--occupancy") { StreamCompaction::Shared::printOccupancy(); return 0; }
+            if ((mode == "--benchmark" || mode == "--tune") && argc == 3)
+                return runBenchmark(argv[2], mode == "--tune");
+            if (mode == "--help") {
+                printf("Usage: cis5650_stream_compaction_test [--test|--quick-test|--cpu-test|--radix-example|--occupancy|--profile-thrust|--benchmark FILE.csv|--tune FILE.csv]\n");
+                return 0;
+            }
+            fprintf(stderr, "Unknown argument: %s\n", argv[1]);
+            return 2;
+        } catch (const std::exception& e) {
+            fprintf(stderr, "FAIL: %s\n", e.what());
+            return 1;
+        }
+    }
+    int *a = new int[SIZE];
+    int *b = new int[SIZE];
+    int *c = new int[SIZE];
     // Scan tests
 
     printf("\n");
@@ -147,8 +172,9 @@ int main(int argc, char* argv[]) {
     //printArray(count, c, true);
     printCmpLenResult(count, expectedNPOT, b, c);
 
-    system("pause"); // stop Win32 console from closing on exit
+    // Run without a pause so automated tests do not require keyboard input.
     delete[] a;
     delete[] b;
     delete[] c;
+    return testFailures ? 1 : 0;
 }
