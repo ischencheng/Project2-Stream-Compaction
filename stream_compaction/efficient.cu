@@ -78,10 +78,40 @@ namespace StreamCompaction {
          * @returns      The number of elements remaining after compaction.
          */
         int compact(int n, int *odata, const int *idata) {
+            int size = 1 << ilog2ceil(n);
+            int *dev_idata, *dev_odata, *dev_bools, *dev_indices;
+            cudaMalloc((void**)&dev_idata, n * sizeof(int));
+            cudaMalloc((void**)&dev_odata, n * sizeof(int));
+            cudaMalloc((void**)&dev_bools, n * sizeof(int));
+            cudaMalloc((void**)&dev_indices, size * sizeof(int));
+            checkCUDAError("cudaMalloc failed");
+            cudaMemcpy(dev_idata, idata, n * sizeof(int), cudaMemcpyHostToDevice);
+            cudaMemset(dev_indices, 0, size * sizeof(int));
+            checkCUDAError("cudaMemcpy to device failed");
+
+            dim3 fullBlocksPerGrid((n + blockSize - 1) / blockSize);
             timer().startGpuTimer();
             // TODO
+            Common::kernMapToBoolean<<<fullBlocksPerGrid, blockSize>>>(n, dev_bools, dev_idata);
+            // the scan is in place, so scan a copy and keep the bools for scatter
+            cudaMemcpy(dev_indices, dev_bools, n * sizeof(int), cudaMemcpyDeviceToDevice);
+            scanOnDevice(size, dev_indices);
+            Common::kernScatter<<<fullBlocksPerGrid, blockSize>>>(n, dev_odata, dev_idata, dev_bools, dev_indices);
             timer().endGpuTimer();
-            return -1;
+            checkCUDAError("work-efficient compact failed");
+
+            // count = last index + last bool
+            int lastIndex, lastBool;
+            cudaMemcpy(&lastIndex, dev_indices + n - 1, sizeof(int), cudaMemcpyDeviceToHost);
+            cudaMemcpy(&lastBool, dev_bools + n - 1, sizeof(int), cudaMemcpyDeviceToHost);
+            int count = lastIndex + lastBool;
+            cudaMemcpy(odata, dev_odata, count * sizeof(int), cudaMemcpyDeviceToHost);
+
+            cudaFree(dev_idata);
+            cudaFree(dev_odata);
+            cudaFree(dev_bools);
+            cudaFree(dev_indices);
+            return count;
         }
     }
 }
