@@ -93,7 +93,7 @@ Compaction on the GPU wins from 2^18 on, even with my slow scan, and the scan is
 
 * **Paste the output of the test program into a triple-backtick block in your README. If you add your own tests (e.g. for radix sort or to test additional corner cases), be sure to mention it explicitly.**
 
-  This is the output of `cis5650_stream_compaction_test.exe -pow 20`.
+  This is the output of `cis5650_stream_compaction_test.exe -pow 20`. My own radix sort tests are in Extra Credit: Radix Sort.
 
   ```
   ****************
@@ -166,3 +166,42 @@ This table shows the work-efficient scan in ms before and after this change.
 | 2^26 | 33.3 | 84.9 | 54.8 |
 
 It is about 1.5× faster for big arrays, and compaction got faster with it (104 to 74.3 ms at 2^26). The block size doesn't matter any more: 32 to 1024 all give 3.5 to 3.7 ms at 2^22. But it is still slower than the CPU. The threads of a warp touch elements that are 2^(d+1) apart, and the GPU reads memory in pieces of 32 bytes, so from the third level on most of each piece is wasted. With Nsight Compute I measured that the 44 sweep kernels at 2^22 move 319 MB, 9.5× the 33.5 MB of one read and one write of the array. So now the scan is limited by memory.
+
+### Extra Credit: Radix Sort
+
+Radix sort sorts the numbers one bit at a time, from the lowest bit to the highest. Each pass splits the array by the current bit: numbers with a 0 bit go to the front, numbers with a 1 bit go after them, and both groups keep their order. I map each number to 1 if its bit is 0 and scan this array with my work-efficient scan. Then a number with bit 0 goes to `scan[i]`, and a number with bit 1 goes to `i - scan[i] + totalZeros`. I flip the sign bit before looking at the bits, so negative numbers come first.
+
+It is in `stream_compaction/radix.cu` and is called like the scans:
+
+```cpp
+StreamCompaction::Radix::sort(n, odata, idata);
+```
+
+I added my own tests to `main.cpp`: random numbers from -500 to 499 are sorted by radix sort and checked against `std::sort`, for a power-of-two and a non-power-of-two size. This is part of the output with 16 elements (`-pow 4`):
+
+```
+**********************
+** RADIX SORT TESTS **
+**********************
+    [ -472 -58   6 -328 -150 223 -219 -309 290 309 -279 195 370 -339 129 -75 ]
+==== cpu std::sort, power-of-two ====
+   elapsed time: 0.0003ms    (std::chrono Measured)
+    [ -472 -339 -328 -309 -279 -219 -150 -75 -58   6 129 195 223 290 309 370 ]
+==== radix sort, power-of-two ====
+   elapsed time: 1.99885ms    (CUDA Measured)
+    [ -472 -339 -328 -309 -279 -219 -150 -75 -58   6 129 195 223 290 309 370 ]
+    passed
+```
+
+This table shows radix sort vs `std::sort` in ms.
+
+| size | std::sort | radix sort |
+| --- | --- | --- |
+| 2^12 | 0.161 | 4.98 |
+| 2^16 | 2.32 | 7.15 |
+| 2^20 | 33.6 | 38.4 |
+| 2^22 | 136 | 139 |
+| 2^24 | 544 | 546 |
+| 2^26 | 2290 | 2217 |
+
+Radix sort catches up with `std::sort` at about 2^22. Each of its 32 passes is mostly one scan, so 32 scans of 3.6 ms make up most of the 139 ms at 2^22.
