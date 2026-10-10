@@ -78,5 +78,13 @@ namespace StreamCompaction {
             delete[] indices;
             return count;
         }
+
+        // std::sort, to check and compare the radix sort
+        void sort(int n, int *odata, const int *idata) {
+            std::copy(idata, idata + n, odata);
+            timer().startCpuTimer();
+            std::sort(odata, odata + n);
+            timer().endCpuTimer();
+        }
     }
 }

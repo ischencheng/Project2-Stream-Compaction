@@ -12,6 +12,7 @@
 #include <stream_compaction/naive.h>
 #include <stream_compaction/efficient.h>
 #include <stream_compaction/thrust.h>
+#include <stream_compaction/radix.h>
 #include "testing_helpers.hpp"
 
 int SIZE = 1 << 8; // feel free to change the size of array
@@ -48,6 +49,7 @@ int main(int argc, char* argv[]) {
     StreamCompaction::Efficient::scan(SIZE, c, a);
     StreamCompaction::Efficient::compact(SIZE, c, a);
     StreamCompaction::Thrust::scan(SIZE, c, a);
+    StreamCompaction::Radix::sort(SIZE, c, a);
 
     // initialize b using StreamCompaction::CPU::scan you implement
     // We use b for further comparison. Make sure your StreamCompaction::CPU::scan is correct.
@@ -164,6 +166,44 @@ int main(int argc, char* argv[]) {
     printElapsedTime(StreamCompaction::Efficient::timer().getGpuElapsedTimeForPreviousOperation(), "(CUDA Measured)");
     //printArray(count, c, true);
     printCmpLenResult(count, expectedNPOT, b, c);
+
+    printf("\n");
+    printf("**********************\n");
+    printf("** RADIX SORT TESTS **\n");
+    printf("**********************\n");
+
+    // my own test: numbers from -500 to 499, so the sign bit is tested too
+    genArray(SIZE, a, 1000);
+    for (int i = 0; i < SIZE; i++) {
+        a[i] -= 500;
+    }
+    printArray(SIZE, a, true);
+
+    zeroArray(SIZE, b);
+    printDesc("cpu std::sort, power-of-two");
+    StreamCompaction::CPU::sort(SIZE, b, a);
+    printElapsedTime(StreamCompaction::CPU::timer().getCpuElapsedTimeForPreviousOperation(), "(std::chrono Measured)");
+    printArray(SIZE, b, true);
+
+    zeroArray(SIZE, c);
+    printDesc("radix sort, power-of-two");
+    StreamCompaction::Radix::sort(SIZE, c, a);
+    printElapsedTime(StreamCompaction::Radix::timer().getGpuElapsedTimeForPreviousOperation(), "(CUDA Measured)");
+    printArray(SIZE, c, true);
+    printCmpResult(SIZE, b, c);
+
+    zeroArray(SIZE, b);
+    printDesc("cpu std::sort, non-power-of-two");
+    StreamCompaction::CPU::sort(NPOT, b, a);
+    printElapsedTime(StreamCompaction::CPU::timer().getCpuElapsedTimeForPreviousOperation(), "(std::chrono Measured)");
+    printArray(NPOT, b, true);
+
+    zeroArray(SIZE, c);
+    printDesc("radix sort, non-power-of-two");
+    StreamCompaction::Radix::sort(NPOT, c, a);
+    printElapsedTime(StreamCompaction::Radix::timer().getGpuElapsedTimeForPreviousOperation(), "(CUDA Measured)");
+    printArray(NPOT, c, true);
+    printCmpResult(NPOT, b, c);
 
     system("pause"); // stop Win32 console from closing on exit
     delete[] a;
