@@ -7,19 +7,31 @@
  */
 
 #include <cstdio>
+#include <cstring>
 #include <stream_compaction/cpu.h>
 #include <stream_compaction/naive.h>
 #include <stream_compaction/efficient.h>
 #include <stream_compaction/thrust.h>
 #include "testing_helpers.hpp"
 
-const int SIZE = 1 << 8; // feel free to change the size of array
-const int NPOT = SIZE - 3; // Non-Power-Of-Two
-int *a = new int[SIZE];
-int *b = new int[SIZE];
-int *c = new int[SIZE];
+int SIZE = 1 << 8; // feel free to change the size of array
+int NPOT = SIZE - 3; // Non-Power-Of-Two
 
 int main(int argc, char* argv[]) {
+    // "-pow 20" uses 2^20 elements, "-block 256" sets the block size of every GPU version
+    for (int i = 1; i + 1 < argc; i += 2) {
+        if (strcmp(argv[i], "-pow") == 0) {
+            SIZE = 1 << atoi(argv[i + 1]);
+            NPOT = SIZE - 3;
+        } else if (strcmp(argv[i], "-block") == 0) {
+            StreamCompaction::Naive::blockSize = atoi(argv[i + 1]);
+            StreamCompaction::Efficient::blockSize = atoi(argv[i + 1]);
+        }
+    }
+    int *a = new int[SIZE];
+    int *b = new int[SIZE];
+    int *c = new int[SIZE];
+
     // Scan tests
 
     printf("\n");
@@ -30,6 +42,12 @@ int main(int argc, char* argv[]) {
     genArray(SIZE - 1, a, 50);  // Leave a 0 at the end to test that edge case
     a[SIZE - 1] = 0;
     printArray(SIZE, a, true);
+
+    // run each GPU version once, so loading the kernels is not timed in the tests
+    StreamCompaction::Naive::scan(SIZE, c, a);
+    StreamCompaction::Efficient::scan(SIZE, c, a);
+    StreamCompaction::Efficient::compact(SIZE, c, a);
+    StreamCompaction::Thrust::scan(SIZE, c, a);
 
     // initialize b using StreamCompaction::CPU::scan you implement
     // We use b for further comparison. Make sure your StreamCompaction::CPU::scan is correct.

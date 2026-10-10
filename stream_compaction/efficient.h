@@ -6,6 +6,8 @@ namespace StreamCompaction {
     namespace Efficient {
         StreamCompaction::Common::PerformanceTimer& timer();
 
+        extern int blockSize;
+
         void scan(int n, int *odata, const int *idata);
 
         int compact(int n, int *odata, const int *idata);
