@@ -18,6 +18,7 @@ Features:
 * Work-efficient GPU scan and compaction
 * Scan with Thrust
 * Command line options for the array size and the block size
+* Extra credit: a faster work-efficient scan, radix sort, and shared memory scans (naive and work-efficient, with padding against bank conflicts)
 
 ### CPU Scan and Compaction
 
@@ -39,7 +40,7 @@ This is just `thrust::exclusive_scan` on two `thrust::device_vector`s. The copie
 
 ### Performance Analysis
 
-I added two command line options, so I don't have to recompile for every test: `-pow 20` runs the tests with 2^20 elements, and `-block 256` sets the block size of all my GPU versions. Before the tests the program runs every GPU version once, so loading the kernels is not part of the timing. All numbers are from a Release build. I ran each setting 3 times and took the middle run. Below 1 ms the numbers jump around a lot between runs (often by 15%, sometimes 2×), above 1 ms they are within a few percent.
+I added command line options, so I don't have to recompile for every test: `-pow 20` runs the tests with 2^20 elements, and `-block 256` sets the block size of all my GPU versions. Before the tests the program runs every GPU version once, so loading the kernels is not part of the timing. All numbers are from a Release build. I ran each setting 3 times and took the middle run. Below 1 ms the numbers jump around a lot between runs (often by 15%, sometimes 2×), above 1 ms they are within a few percent. The tables in this section use my first work-efficient scan; the faster one is in Extra Credit: Faster Work-Efficient Scan.
 
 This table shows the time in ms with 2^22 elements for different block sizes.
 
@@ -62,7 +63,7 @@ This table shows the scan time in ms (power-of-two sizes, block size 128). The n
 | 2^22 | 1.96 | 7.81 | 5.46 | 0.734 |
 | 2^26 | 33.3 | 154 | 84.9 | 6.06 |
 
-From the table, thrust is the fastest GPU version and the only one that beats the CPU, 5.5× faster at 2^26. My naive and work-efficient scans are slower than the CPU at every size. The work-efficient scan does fewer additions than the naive one, but it is only 1.8× faster at 2^26, and for small arrays it is even slower than naive, because it has twice as many kernel launches.
+From the table, thrust is the fastest and the only one of these GPU versions that beats the CPU, 5.5× faster at 2^26. My naive and work-efficient scans are slower than the CPU at every size. The work-efficient scan does fewer additions than the naive one, but it is only 1.8× faster at 2^26, and for small arrays it is even slower than naive, because it has twice as many kernel launches.
 
 This table shows the compaction time in ms.
 
@@ -93,60 +94,88 @@ Compaction on the GPU wins from 2^18 on, even with my slow scan, and the scan is
 
 * **Paste the output of the test program into a triple-backtick block in your README. If you add your own tests (e.g. for radix sort or to test additional corner cases), be sure to mention it explicitly.**
 
-  This is the output of `cis5650_stream_compaction_test.exe -pow 20`. My own radix sort tests are in Extra Credit: Radix Sort.
+  This is the output of `cis5650_stream_compaction_test.exe -pow 20`. The shared memory scan and radix sort tests are my own (see the extra credit sections).
 
   ```
   ****************
   ** SCAN TESTS **
   ****************
-      [  19   9   9  24  16  30   5  30  47  49  23  33  27 ...  11   0 ]
+      [  27   2   1  21  38  28  27  37   7  20  17  25  19 ...  44   0 ]
   ==== cpu scan, power-of-two ====
-     elapsed time: 0.4058ms    (std::chrono Measured)
-      [   0  19  28  37  61  77 107 112 142 189 238 261 294 ... 25672088 25672099 ]
+     elapsed time: 0.5012ms    (std::chrono Measured)
+      [   0  27  29  30  51  89 117 144 181 188 208 225 250 ... 25693932 25693976 ]
   ==== cpu scan, non-power-of-two ====
-     elapsed time: 0.3741ms    (std::chrono Measured)
-      [   0  19  28  37  61  77 107 112 142 189 238 261 294 ... 25672029 25672044 ]
+     elapsed time: 0.4761ms    (std::chrono Measured)
+      [   0  27  29  30  51  89 117 144 181 188 208 225 250 ... 25693889 25693923 ]
       passed
   ==== naive scan, power-of-two ====
-     elapsed time: 1.79347ms    (CUDA Measured)
+     elapsed time: 1.79152ms    (CUDA Measured)
       passed
   ==== naive scan, non-power-of-two ====
-     elapsed time: 1.79178ms    (CUDA Measured)
+     elapsed time: 1.85398ms    (CUDA Measured)
       passed
   ==== work-efficient scan, power-of-two ====
-     elapsed time: 1.5176ms    (CUDA Measured)
+     elapsed time: 1.21133ms    (CUDA Measured)
       passed
   ==== work-efficient scan, non-power-of-two ====
-     elapsed time: 1.52038ms    (CUDA Measured)
+     elapsed time: 1.19971ms    (CUDA Measured)
       passed
   ==== thrust scan, power-of-two ====
-     elapsed time: 0.434016ms    (CUDA Measured)
+     elapsed time: 0.671744ms    (CUDA Measured)
       passed
   ==== thrust scan, non-power-of-two ====
-     elapsed time: 0.466816ms    (CUDA Measured)
+     elapsed time: 0.672768ms    (CUDA Measured)
+      passed
+  ==== shared memory naive scan, power-of-two ====
+     elapsed time: 0.220384ms    (CUDA Measured)
+      passed
+  ==== shared memory work-efficient scan, power-of-two ====
+     elapsed time: 0.216128ms    (CUDA Measured)
+      passed
+  ==== shared memory work-efficient scan, non-power-of-two ====
+     elapsed time: 0.208832ms    (CUDA Measured)
       passed
 
   *****************************
   ** STREAM COMPACTION TESTS **
   *****************************
-      [   0   2   1   1   3   1   1   3   2   1   1   1   2 ...   3   0 ]
+      [   0   3   1   0   0   1   2   1   2   2   2   1   0 ...   0   0 ]
   ==== cpu compact without scan, power-of-two ====
-     elapsed time: 2.3316ms    (std::chrono Measured)
-      [   2   1   1   3   1   1   3   2   1   1   1   2   1 ...   2   3 ]
+     elapsed time: 3.2987ms    (std::chrono Measured)
+      [   3   1   1   2   1   2   2   2   1   3   3   2   1 ...   1   2 ]
       passed
   ==== cpu compact without scan, non-power-of-two ====
-     elapsed time: 2.1798ms    (std::chrono Measured)
-      [   2   1   1   3   1   1   3   2   1   1   1   2   1 ...   1   3 ]
+     elapsed time: 3.2212ms    (std::chrono Measured)
+      [   3   1   1   2   1   2   2   2   1   3   3   2   1 ...   1   2 ]
       passed
   ==== cpu compact with scan ====
-     elapsed time: 4.2614ms    (std::chrono Measured)
-      [   2   1   1   3   1   1   3   2   1   1   1   2   1 ...   2   3 ]
+     elapsed time: 6.4644ms    (std::chrono Measured)
+      [   3   1   1   2   1   2   2   2   1   3   3   2   1 ...   1   2 ]
       passed
   ==== work-efficient compact, power-of-two ====
-     elapsed time: 1.81965ms    (CUDA Measured)
+     elapsed time: 1.33939ms    (CUDA Measured)
       passed
   ==== work-efficient compact, non-power-of-two ====
-     elapsed time: 1.81862ms    (CUDA Measured)
+     elapsed time: 1.3527ms    (CUDA Measured)
+      passed
+
+  **********************
+  ** RADIX SORT TESTS **
+  **********************
+      [ 484 299 461 -288 -100 -219 334 233 -438 174 122 413  60 ... -12  62 ]
+  ==== cpu std::sort, power-of-two ====
+     elapsed time: 47.3022ms    (std::chrono Measured)
+      [ -500 -500 -500 -500 -500 -500 -500 -500 -500 -500 -500 -500 -500 ... 499 499 ]
+  ==== radix sort, power-of-two ====
+     elapsed time: 40.3323ms    (CUDA Measured)
+      [ -500 -500 -500 -500 -500 -500 -500 -500 -500 -500 -500 -500 -500 ... 499 499 ]
+      passed
+  ==== cpu std::sort, non-power-of-two ====
+     elapsed time: 46.73ms    (std::chrono Measured)
+      [ -500 -500 -500 -500 -500 -500 -500 -500 -500 -500 -500 -500 -500 ... 499 499 ]
+  ==== radix sort, non-power-of-two ====
+     elapsed time: 40.0339ms    (CUDA Measured)
+      [ -500 -500 -500 -500 -500 -500 -500 -500 -500 -500 -500 -500 -500 ... 499 499 ]
       passed
   ```
 
@@ -205,3 +234,24 @@ This table shows radix sort vs `std::sort` in ms.
 | 2^26 | 2290 | 2217 |
 
 Radix sort catches up with `std::sort` at about 2^22. Each of its 32 passes is mostly one scan, so 32 scans of 3.6 ms make up most of the 139 ms at 2^22.
+
+### Extra Credit: Shared Memory Scan
+
+My global memory scans read and write the array again at every level. In the shared memory version each block loads a tile of the array into shared memory, does all the levels there, and writes it back, so a tile costs one read and one write of global memory. Each block also saves its tile sum. I scan the tile sums the same way, and a last kernel adds them to every element of their tile. I did both versions from GPU Gems 3: the naive one (Example 39-1), where B threads scan B elements with two buffers, and the work-efficient one (Example 39-2), where B threads scan 2B elements in place.
+
+Shared memory is split into 32 banks. In the work-efficient scan the threads of a warp read elements that are 2, 4, 8, ... apart, so many of them hit the same bank and have to wait for each other (bank conflicts). Like in Section 39.2.3, I leave one empty slot after every 32 ints, so these elements land in different banks. `-pad 0` turns this off.
+
+This table shows the scans in ms with block size 128 (for the shared work-efficient scan, 64 to 512 are all within 1%).
+
+| size | CPU | global work-efficient | shared naive | shared work-efficient | shared work-efficient, no padding | thrust |
+| --- | --- | --- | --- | --- | --- | --- |
+| 2^16 | 0.023 | 0.227 | 0.047 | 0.041 | 0.044 | 0.029 |
+| 2^18 | 0.072 | 0.300 | 0.076 | 0.073 | 0.082 | 0.312 |
+| 2^20 | 0.457 | 1.03 | 0.214 | 0.211 | 0.251 | 0.441 |
+| 2^22 | 2.09 | 3.66 | 0.700 | 0.696 | 0.738 | 0.795 |
+| 2^24 | 7.52 | 13.8 | 2.64 | 2.61 | 2.77 | 1.99 |
+| 2^26 | 32.6 | 54.7 | 10.4 | 10.3 | 10.9 | 6.04 |
+
+The shared memory scan is 5.3× faster than my global memory scan at 2^26 and 3.2× faster than the CPU, so it is my first scan that beats the CPU for big arrays. From 2^18 to 2^22 it even beats thrust, because there thrust spends most of its time on `cudaMalloc` and `cudaFree` (see the Nsight answer above). At 2^26 thrust is still 1.7× faster. With Nsight Compute I measured that my scan moves about 16 bytes per element, because it reads and writes the array twice: in the tile kernel and when it adds the tile sums. Thrust's timeline shows only one scan kernel, so I think it reads and writes the array only once.
+
+The naive and the work-efficient versions are almost the same here. Both are limited by global memory, and the extra additions of the naive one happen in fast shared memory. The padding cuts the bank conflicts of the tile kernel from 4.6 million to 38 thousand (Nsight Compute, 2^22), but the whole scan only takes 5 to 16% less time, again because global memory is the limit.
