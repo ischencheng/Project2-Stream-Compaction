@@ -13,6 +13,7 @@
 #include <stream_compaction/efficient.h>
 #include <stream_compaction/thrust.h>
 #include <stream_compaction/radix.h>
+#include <stream_compaction/shared.h>
 #include "testing_helpers.hpp"
 
 int SIZE = 1 << 8; // feel free to change the size of array
@@ -27,6 +28,10 @@ int main(int argc, char* argv[]) {
         } else if (strcmp(argv[i], "-block") == 0) {
             StreamCompaction::Naive::blockSize = atoi(argv[i + 1]);
             StreamCompaction::Efficient::blockSize = atoi(argv[i + 1]);
+            StreamCompaction::Shared::blockSize = atoi(argv[i + 1]);
+        } else if (strcmp(argv[i], "-pad") == 0) {
+            // "-pad 0" turns off the padding against bank conflicts
+            StreamCompaction::Shared::avoidBankConflicts = atoi(argv[i + 1]) != 0;
         }
     }
     int *a = new int[SIZE];
@@ -50,6 +55,8 @@ int main(int argc, char* argv[]) {
     StreamCompaction::Efficient::compact(SIZE, c, a);
     StreamCompaction::Thrust::scan(SIZE, c, a);
     StreamCompaction::Radix::sort(SIZE, c, a);
+    StreamCompaction::Shared::scanNaive(SIZE, c, a);
+    StreamCompaction::Shared::scan(SIZE, c, a);
 
     // initialize b using StreamCompaction::CPU::scan you implement
     // We use b for further comparison. Make sure your StreamCompaction::CPU::scan is correct.
@@ -113,6 +120,24 @@ int main(int argc, char* argv[]) {
     StreamCompaction::Thrust::scan(NPOT, c, a);
     printElapsedTime(StreamCompaction::Thrust::timer().getGpuElapsedTimeForPreviousOperation(), "(CUDA Measured)");
     //printArray(NPOT, c, true);
+    printCmpResult(NPOT, b, c);
+
+    zeroArray(SIZE, c);
+    printDesc("shared memory naive scan, power-of-two");
+    StreamCompaction::Shared::scanNaive(SIZE, c, a);
+    printElapsedTime(StreamCompaction::Shared::timer().getGpuElapsedTimeForPreviousOperation(), "(CUDA Measured)");
+    printCmpResult(SIZE, b, c);
+
+    zeroArray(SIZE, c);
+    printDesc("shared memory work-efficient scan, power-of-two");
+    StreamCompaction::Shared::scan(SIZE, c, a);
+    printElapsedTime(StreamCompaction::Shared::timer().getGpuElapsedTimeForPreviousOperation(), "(CUDA Measured)");
+    printCmpResult(SIZE, b, c);
+
+    zeroArray(SIZE, c);
+    printDesc("shared memory work-efficient scan, non-power-of-two");
+    StreamCompaction::Shared::scan(NPOT, c, a);
+    printElapsedTime(StreamCompaction::Shared::timer().getGpuElapsedTimeForPreviousOperation(), "(CUDA Measured)");
     printCmpResult(NPOT, b, c);
 
     printf("\n");
