@@ -149,3 +149,20 @@ Compaction on the GPU wins from 2^18 on, even with my slow scan, and the scan is
      elapsed time: 1.81862ms    (CUDA Measured)
       passed
   ```
+
+### Extra Credit: Faster Work-Efficient Scan
+
+My first work-efficient scan launched one thread per element at every level, and a thread only did something if its index was a multiple of 2^(d+1). So at the deeper levels almost every thread just checked its index and quit. Now thread k works on the k-th pair of the level, so a level only launches n / 2^(d+1) threads. A whole scan now launches about 2n threads instead of 2n·log2(n).
+
+This table shows the work-efficient scan in ms before and after this change.
+
+| size | CPU | before | after |
+| --- | --- | --- | --- |
+| 2^16 | 0.022 | 0.242 | 0.212 |
+| 2^18 | 0.097 | 0.375 | 0.288 |
+| 2^20 | 0.414 | 1.42 | 1.02 |
+| 2^22 | 1.96 | 5.46 | 3.61 |
+| 2^24 | 8.08 | 20.5 | 13.8 |
+| 2^26 | 33.3 | 84.9 | 54.8 |
+
+It is about 1.5× faster for big arrays, and compaction got faster with it (104 to 74.3 ms at 2^26). The block size doesn't matter any more: 32 to 1024 all give 3.5 to 3.7 ms at 2^22. But it is still slower than the CPU. The threads of a warp touch elements that are 2^(d+1) apart, and the GPU reads memory in pieces of 32 bytes, so from the third level on most of each piece is wasted. With Nsight Compute I measured that the 44 sweep kernels at 2^22 move 319 MB, 9.5× the 33.5 MB of one read and one write of the array. So now the scan is limited by memory.
