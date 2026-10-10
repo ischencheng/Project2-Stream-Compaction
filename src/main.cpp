@@ -7,19 +7,37 @@
  */
 
 #include <cstdio>
+#include <cstring>
 #include <stream_compaction/cpu.h>
 #include <stream_compaction/naive.h>
 #include <stream_compaction/efficient.h>
 #include <stream_compaction/thrust.h>
+#include <stream_compaction/radix.h>
+#include <stream_compaction/shared.h>
 #include "testing_helpers.hpp"
 
-const int SIZE = 1 << 8; // feel free to change the size of array
-const int NPOT = SIZE - 3; // Non-Power-Of-Two
-int *a = new int[SIZE];
-int *b = new int[SIZE];
-int *c = new int[SIZE];
+int SIZE = 1 << 8; // feel free to change the size of array
+int NPOT = SIZE - 3; // Non-Power-Of-Two
 
 int main(int argc, char* argv[]) {
+    // "-pow 20" uses 2^20 elements, "-block 256" sets the block size of every GPU version
+    for (int i = 1; i + 1 < argc; i += 2) {
+        if (strcmp(argv[i], "-pow") == 0) {
+            SIZE = 1 << atoi(argv[i + 1]);
+            NPOT = SIZE - 3;
+        } else if (strcmp(argv[i], "-block") == 0) {
+            StreamCompaction::Naive::blockSize = atoi(argv[i + 1]);
+            StreamCompaction::Efficient::blockSize = atoi(argv[i + 1]);
+            StreamCompaction::Shared::blockSize = atoi(argv[i + 1]);
+        } else if (strcmp(argv[i], "-pad") == 0) {
+            // "-pad 0" turns off the padding against bank conflicts
+            StreamCompaction::Shared::avoidBankConflicts = atoi(argv[i + 1]) != 0;
+        }
+    }
+    int *a = new int[SIZE];
+    int *b = new int[SIZE];
+    int *c = new int[SIZE];
+
     // Scan tests
 
     printf("\n");
@@ -30,6 +48,15 @@ int main(int argc, char* argv[]) {
     genArray(SIZE - 1, a, 50);  // Leave a 0 at the end to test that edge case
     a[SIZE - 1] = 0;
     printArray(SIZE, a, true);
+
+    // run each GPU version once, so loading the kernels is not timed in the tests
+    StreamCompaction::Naive::scan(SIZE, c, a);
+    StreamCompaction::Efficient::scan(SIZE, c, a);
+    StreamCompaction::Efficient::compact(SIZE, c, a);
+    StreamCompaction::Thrust::scan(SIZE, c, a);
+    StreamCompaction::Radix::sort(SIZE, c, a);
+    StreamCompaction::Shared::scanNaive(SIZE, c, a);
+    StreamCompaction::Shared::scan(SIZE, c, a);
 
     // initialize b using StreamCompaction::CPU::scan you implement
     // We use b for further comparison. Make sure your StreamCompaction::CPU::scan is correct.
@@ -95,6 +122,24 @@ int main(int argc, char* argv[]) {
     //printArray(NPOT, c, true);
     printCmpResult(NPOT, b, c);
 
+    zeroArray(SIZE, c);
+    printDesc("shared memory naive scan, power-of-two");
+    StreamCompaction::Shared::scanNaive(SIZE, c, a);
+    printElapsedTime(StreamCompaction::Shared::timer().getGpuElapsedTimeForPreviousOperation(), "(CUDA Measured)");
+    printCmpResult(SIZE, b, c);
+
+    zeroArray(SIZE, c);
+    printDesc("shared memory work-efficient scan, power-of-two");
+    StreamCompaction::Shared::scan(SIZE, c, a);
+    printElapsedTime(StreamCompaction::Shared::timer().getGpuElapsedTimeForPreviousOperation(), "(CUDA Measured)");
+    printCmpResult(SIZE, b, c);
+
+    zeroArray(SIZE, c);
+    printDesc("shared memory work-efficient scan, non-power-of-two");
+    StreamCompaction::Shared::scan(NPOT, c, a);
+    printElapsedTime(StreamCompaction::Shared::timer().getGpuElapsedTimeForPreviousOperation(), "(CUDA Measured)");
+    printCmpResult(NPOT, b, c);
+
     printf("\n");
     printf("*****************************\n");
     printf("** STREAM COMPACTION TESTS **\n");
@@ -146,6 +191,44 @@ int main(int argc, char* argv[]) {
     printElapsedTime(StreamCompaction::Efficient::timer().getGpuElapsedTimeForPreviousOperation(), "(CUDA Measured)");
     //printArray(count, c, true);
     printCmpLenResult(count, expectedNPOT, b, c);
+
+    printf("\n");
+    printf("**********************\n");
+    printf("** RADIX SORT TESTS **\n");
+    printf("**********************\n");
+
+    // my own test: numbers from -500 to 499, so the sign bit is tested too
+    genArray(SIZE, a, 1000);
+    for (int i = 0; i < SIZE; i++) {
+        a[i] -= 500;
+    }
+    printArray(SIZE, a, true);
+
+    zeroArray(SIZE, b);
+    printDesc("cpu std::sort, power-of-two");
+    StreamCompaction::CPU::sort(SIZE, b, a);
+    printElapsedTime(StreamCompaction::CPU::timer().getCpuElapsedTimeForPreviousOperation(), "(std::chrono Measured)");
+    printArray(SIZE, b, true);
+
+    zeroArray(SIZE, c);
+    printDesc("radix sort, power-of-two");
+    StreamCompaction::Radix::sort(SIZE, c, a);
+    printElapsedTime(StreamCompaction::Radix::timer().getGpuElapsedTimeForPreviousOperation(), "(CUDA Measured)");
+    printArray(SIZE, c, true);
+    printCmpResult(SIZE, b, c);
+
+    zeroArray(SIZE, b);
+    printDesc("cpu std::sort, non-power-of-two");
+    StreamCompaction::CPU::sort(NPOT, b, a);
+    printElapsedTime(StreamCompaction::CPU::timer().getCpuElapsedTimeForPreviousOperation(), "(std::chrono Measured)");
+    printArray(NPOT, b, true);
+
+    zeroArray(SIZE, c);
+    printDesc("radix sort, non-power-of-two");
+    StreamCompaction::Radix::sort(NPOT, c, a);
+    printElapsedTime(StreamCompaction::Radix::timer().getGpuElapsedTimeForPreviousOperation(), "(CUDA Measured)");
+    printArray(NPOT, c, true);
+    printCmpResult(NPOT, b, c);
 
     system("pause"); // stop Win32 console from closing on exit
     delete[] a;
