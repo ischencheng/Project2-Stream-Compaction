@@ -14,34 +14,41 @@ namespace StreamCompaction {
 
         int blockSize = 128;
 
-        __global__ void kernUpSweep(int n, int stride, int *data) {
+        // thread k works on the k-th pair of this level, so no thread is idle
+        __global__ void kernUpSweep(int count, int stride, int *data) {
             int k = blockIdx.x * blockDim.x + threadIdx.x;
-            if (k >= n || k % stride != 0) {
+            if (k >= count) {
                 return;
             }
-            data[k + stride - 1] += data[k + stride / 2 - 1];
+            int right = (k + 1) * stride - 1;
+            data[right] += data[right - stride / 2];
         }
 
-        __global__ void kernDownSweep(int n, int stride, int *data) {
+        __global__ void kernDownSweep(int count, int stride, int *data) {
             int k = blockIdx.x * blockDim.x + threadIdx.x;
-            if (k >= n || k % stride != 0) {
+            if (k >= count) {
                 return;
             }
-            int left = data[k + stride / 2 - 1];
-            data[k + stride / 2 - 1] = data[k + stride - 1];
-            data[k + stride - 1] += left;
+            int right = (k + 1) * stride - 1;
+            int left = data[right - stride / 2];
+            data[right - stride / 2] = data[right];
+            data[right] += left;
         }
 
         // in-place exclusive scan on the device, n must be a power of two
         void scanOnDevice(int n, int *dev_data) {
-            dim3 fullBlocksPerGrid((n + blockSize - 1) / blockSize);
             for (int d = 0; d < ilog2(n); d++) {
-                kernUpSweep<<<fullBlocksPerGrid, blockSize>>>(n, 1 << (d + 1), dev_data);
+                // only n / 2^(d+1) pairs at this level
+                int count = n >> (d + 1);
+                dim3 blocks((count + blockSize - 1) / blockSize);
+                kernUpSweep<<<blocks, blockSize>>>(count, 1 << (d + 1), dev_data);
             }
             // set the root to 0
             cudaMemset(dev_data + n - 1, 0, sizeof(int));
             for (int d = ilog2(n) - 1; d >= 0; d--) {
-                kernDownSweep<<<fullBlocksPerGrid, blockSize>>>(n, 1 << (d + 1), dev_data);
+                int count = n >> (d + 1);
+                dim3 blocks((count + blockSize - 1) / blockSize);
+                kernDownSweep<<<blocks, blockSize>>>(count, 1 << (d + 1), dev_data);
             }
         }
 
